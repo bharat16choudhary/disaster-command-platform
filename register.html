@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register — AI Disaster Command Platform</title>
+  <meta name="description" content="Register a new emergency responder account on the AI Disaster Command Platform." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <div class="auth-page">
+    <div class="auth-card">
+
+      <div class="auth-logo">
+        <div class="logo-icon">🚨</div>
+        <div>
+          <h1>DisasterCommand</h1>
+          <p>AI-Powered Emergency Platform</p>
+        </div>
+      </div>
+
+      <h2 class="auth-title">Create Account</h2>
+      <p class="auth-sub">Register as an emergency responder</p>
+
+      <div class="alert alert-error" id="reg-error"></div>
+      <div class="alert alert-success" id="reg-success"></div>
+
+      <form id="register-form" novalidate>
+
+        <div class="form-group">
+          <label for="reg-name">Full Name</label>
+          <input type="text" id="reg-name" placeholder="Commander John Doe" required autocomplete="name" />
+        </div>
+
+        <div class="form-group">
+          <label for="reg-email">Email Address</label>
+          <input type="email" id="reg-email" placeholder="commander@emergency.gov" required autocomplete="email" />
+        </div>
+
+        <div class="form-group">
+          <label for="reg-password">Password</label>
+          <input type="password" id="reg-password" placeholder="Min 6 characters" required
+            autocomplete="new-password" />
+        </div>
+
+        <div class="form-group">
+          <label for="reg-confirm">Confirm Password</label>
+          <input type="password" id="reg-confirm" placeholder="Repeat password" required autocomplete="new-password" />
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full" id="reg-btn">
+          Create Account
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Already have an account? <a href="index.html">Sign in</a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FIREBASE -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOfdPvigodx9J6c31TtU_kplvL4L89vYk",
+      authDomain: "idealab-f21d9.firebaseapp.com",
+      projectId: "idealab-f21d9",
+      storageBucket: "idealab-f21d9.firebasestorage.app",
+      messagingSenderId: "549958645898",
+      appId: "1:549958645898:web:fce17da515367abcc99573",
+      measurementId: "G-CHJB44N3X2"
+    };
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    /* If already logged in → dashboard */
+    onAuthStateChanged(auth, user => {
+      if (user) window.location.href = "dashboard.html";
+    });
+
+    if (localStorage.getItem("theme") === "dark") {
+      document.body.classList.add("dark");
+    }
+
+    function showAlert(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 5000);
+    }
+
+    document.getElementById("register-form").addEventListener("submit", async e => {
+      e.preventDefault();
+
+      const name = document.getElementById("reg-name").value.trim();
+      const email = document.getElementById("reg-email").value.trim();
+      const password = document.getElementById("reg-password").value;
+      const confirm = document.getElementById("reg-confirm").value;
+      const btn = document.getElementById("reg-btn");
+
+      if (!name || !email || !password || !confirm) {
+        showAlert("reg-error", "Please fill in all fields."); return;
+      }
+      if (password.length < 6) {
+        showAlert("reg-error", "Password must be at least 6 characters."); return;
+      }
+      if (password !== confirm) {
+        showAlert("reg-error", "Passwords do not match."); return;
+      }
+
+      btn.innerHTML = '<span class="spinner"></span> Creating…';
+      btn.disabled = true;
+
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(cred.user, { displayName: name });
+        showAlert("reg-success", "Account created! Redirecting to dashboard…");
+        setTimeout(() => { window.location.href = "dashboard.html"; }, 1000);
+      } catch (err) {
+        const msg = {
+          "auth/email-already-in-use": "An account with this email already exists.",
+          "auth/invalid-email": "Invalid email address.",
+          "auth/weak-password": "Password is too weak."
+        }[err.code] || err.message;
+        showAlert("reg-error", msg);
+        btn.textContent = "Create Account";
+        btn.disabled = false;
+      }
+    });
+  </script>
+
+</body>
+
+</html>

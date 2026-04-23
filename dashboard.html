@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — AI Disaster Command Platform</title>
+  <meta name="description" content="Live emergency command dashboard with AI prioritization and Google Maps." />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    #map {
+      width: 100%;
+      height: 420px;
+      border-radius: var(--radius-md);
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .incident-scroll {
+      max-height: 340px;
+      overflow-y: auto;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .tab-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tab-btn {
+      padding: 7px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 2px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      padding: 14px 20px;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-md);
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 9000;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: var(--transition);
+      max-width: 320px;
+    }
+
+    #toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app-layout">
+
+    <!-- ════ SIDEBAR ════ -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <div class="logo-icon">🚨</div>
+          <div>
+            <h2>DisasterCommand</h2>
+            <span>AI Emergency Platform</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Main</div>
+        <button class="nav-item active" data-page="dashboard" id="nav-dashboard">
+          <span class="nav-icon">📊</span> Dashboard
+        </button>
+        <button class="nav-item" data-page="map-page" id="nav-map">
+          <span class="nav-icon">🗺️</span> Live Map
+        </button>
+        <button class="nav-item" onclick="window.location.href='report.html'">
+          <span class="nav-icon">🚨</span> Report Incident
+        </button>
+        <button class="nav-item" onclick="window.location.href='liveops.html'" style="background:linear-gradient(135deg,#e11d48,#9f1239);color:#fff;border:none;margin-top:4px;margin-bottom:4px;">
+          <span class="nav-icon">🌐</span> Live Ops Center
+        </button>
+        <button class="nav-item" data-page="ai-page" id="nav-ai">
+          <span class="nav-icon">🤖</span> AI Engine
+        </button>
+
+        <div class="nav-section-label" style="margin-top:12px;">Resources</div>
+        <button class="nav-item" data-page="resources-page" id="nav-resources">
+          <span class="nav-icon">🚒</span> Resources
+        </button>
+        <button class="nav-item" data-page="incidents-page" id="nav-incidents">
+          <span class="nav-icon">📋</span> All Incidents
+        </button>
+        <button class="nav-item" onclick="window.location.href='seed.html'">
+          <span class="nav-icon">🌱</span> Seed Resources
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar" id="user-avatar">U</div>
+          <div>
+            <div class="user-name" id="user-name">Loading…</div>
+            <div class="user-email" id="user-email">—</div>
+          </div>
+        </div>
+        <button class="btn btn-danger btn-full btn-sm" id="logout-btn">🔓 Logout</button>
+      </div>
+    </aside>
+
+    <!-- ════ MAIN ════ -->
+    <div class="main-content">
+
+      <!-- Topbar -->
+      <header class="topbar">
+        <span class="topbar-title" id="page-title">Dashboard</span>
+        <div class="topbar-actions">
+          <span class="live-dot">LIVE</span>
+          <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
+          <a href="liveops.html" class="btn btn-sm" style="background:linear-gradient(135deg,#e11d48,#9f1239);color:#fff;font-weight:700;box-shadow:0 0 12px rgba(225,29,72,.4);">🌐 Live Ops</a>
+          <a href="report.html" class="btn btn-primary btn-sm">+ New Incident</a>
+        </div>
+      </header>
+
+      <!-- ══ PAGE: DASHBOARD ══ -->
+      <div class="page active" id="page-dashboard">
+        <div class="page-header">
+          <h1>Command Overview</h1>
+          <span id="last-updated" style="font-size:12px;color:var(--text-muted)"></span>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon red">🔴</div>
+            <div>
+              <div class="stat-value" id="stat-high">0</div>
+              <div class="stat-label">High Priority</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon orange">🟡</div>
+            <div>
+              <div class="stat-value" id="stat-medium">0</div>
+              <div class="stat-label">Medium Priority</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">🟢</div>
+            <div>
+              <div class="stat-value" id="stat-low">0</div>
+              <div class="stat-label">Low Priority</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue">📋</div>
+            <div>
+              <div class="stat-value" id="stat-total">0</div>
+              <div class="stat-label">Total Incidents</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Map + Incident list -->
+        <div class="content-grid">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">🗺️ Incident Map</span>
+              <span class="live-dot">Live</span>
+            </div>
+            <div class="card-body" style="padding:16px;">
+              <div id="map"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">⚡ Recent Incidents</span>
+              <span id="incident-count" class="badge badge-high">0</span>
+            </div>
+            <div class="card-body incident-scroll" id="incident-list">
+              <div class="empty-state">No incidents reported yet.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ PAGE: LIVE MAP ══ -->
+      <div class="page" id="page-map-page">
+        <div class="page-header">
+          <h1>🗺️ Live Incident Map</h1>
+        </div>
+        <div class="card">
+          <div class="card-body" style="padding:16px;">
+            <div id="map2" style="width:100%;height:600px;border-radius:var(--radius-md);"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ PAGE: ALL INCIDENTS ══ -->
+      <div class="page" id="page-incidents-page">
+        <div class="page-header">
+          <h1>📋 All Incidents</h1>
+          <div class="tab-row">
+            <button class="tab-btn active" data-filter="ALL">All</button>
+            <button class="tab-btn" data-filter="HIGH">🔴 High</button>
+            <button class="tab-btn" data-filter="MEDIUM">🟡 Medium</button>
+            <button class="tab-btn" data-filter="LOW">🟢 Low</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body" id="all-incidents-list">
+            <div class="empty-state">Loading incidents…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ PAGE: RESOURCES ══ -->
+      <div class="page" id="page-resources-page">
+        <div class="page-header">
+          <h1>🚒 Resource Status</h1>
+          <a href="seed.html" class="btn btn-primary btn-sm">🌱 Seed / Reset Resources</a>
+        </div>
+        <div class="card" style="margin-bottom:16px;background:rgba(34,197,94,.07);border-color:rgba(34,197,94,.3);">
+          <div class="card-body" style="padding:14px 20px;font-size:13px;color:var(--text-secondary);">
+            <b style="color:#16a34a;">ℹ️ No resources showing?</b> Click <b>"Seed / Reset Resources"</b> above to populate emergency vehicles into Firestore. Do this once after setting up.
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body resource-list" id="resource-list">
+            <div class="empty-state">Loading resources…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ PAGE: AI ENGINE ══ -->
+      <div class="page" id="page-ai-page">
+        <div class="page-header"><h1>🤖 AI Priority Engine</h1></div>
+
+        <!-- AI Rules card -->
+        <div class="stats-grid" style="margin-bottom:20px;">
+          <div class="stat-card" style="border-left:4px solid #e11d48;">
+            <div class="stat-icon red">🔴</div>
+            <div>
+              <div class="stat-value" style="font-size:18px;">HIGH</div>
+              <div class="stat-label">Fire · Accident · Injury</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Immediate dispatch</div>
+            </div>
+          </div>
+          <div class="stat-card" style="border-left:4px solid #f59e0b;">
+            <div class="stat-icon orange">🟡</div>
+            <div>
+              <div class="stat-value" style="font-size:18px;">MEDIUM</div>
+              <div class="stat-label">Flood · Damage</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Urgent response</div>
+            </div>
+          </div>
+          <div class="stat-card" style="border-left:4px solid #22c55e;">
+            <div class="stat-icon green">🟢</div>
+            <div>
+              <div class="stat-value" style="font-size:18px;">LOW</div>
+              <div class="stat-label">Other incidents</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Scheduled / monitoring</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-grid">
+          <!-- AI Decision Log -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">🧠 AI Decision Log</span>
+              <span class="live-dot">Live</span>
+            </div>
+            <div class="card-body" id="ai-log" style="max-height:400px;overflow-y:auto;">
+              <div class="empty-state">No incidents analysed yet. Report one to see AI decisions.</div>
+            </div>
+          </div>
+
+          <!-- Resource dispatch log -->
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">🚒 Smart Dispatch Log</span>
+            </div>
+            <div class="card-body" id="dispatch-log" style="max-height:400px;overflow-y:auto;">
+              <div class="empty-state">No dispatches yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- How it works -->
+        <div class="card" style="margin-top:20px;">
+          <div class="card-header"><span class="card-title">⚙️ How the AI Works</span></div>
+          <div class="card-body">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+              <div style="padding:16px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);">
+                <div style="font-size:24px;margin-bottom:8px;">1️⃣</div>
+                <b style="font-size:13px;">Incident Received</b>
+                <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">User submits type + location via the reporting page.</p>
+              </div>
+              <div style="padding:16px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);">
+                <div style="font-size:24px;margin-bottom:8px;">2️⃣</div>
+                <b style="font-size:13px;">AI Classifies Priority</b>
+                <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Python backend applies rule-based AI to assign HIGH / MEDIUM / LOW.</p>
+              </div>
+              <div style="padding:16px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);">
+                <div style="font-size:24px;margin-bottom:8px;">3️⃣</div>
+                <b style="font-size:13px;">Nearest Resource Found</b>
+                <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Haversine distance formula finds the closest available vehicle.</p>
+              </div>
+              <div style="padding:16px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);">
+                <div style="font-size:24px;margin-bottom:8px;">4️⃣</div>
+                <b style="font-size:13px;">Real-time Update</b>
+                <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">Firestore onSnapshot pushes updates to all connected dashboards instantly.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /main-content -->
+  </div><!-- /app-layout -->
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Google Maps (replace YOUR_MAPS_API_KEY) -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD0-kgoXmjkZ8oW0MePbAyu_aT_JCg-AjQ&callback=initMaps"
+    async defer></script>
+
+  <!-- Firebase + App Logic -->
+  <script type="module">
+    import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, orderBy, query }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOfdPvigodx9J6c31TtU_kplvL4L89vYk",
+      authDomain: "idealab-f21d9.firebaseapp.com",
+      projectId: "idealab-f21d9",
+      storageBucket: "idealab-f21d9.firebasestorage.app",
+      messagingSenderId: "549958645898",
+      appId: "1:549958645898:web:fce17da515367abcc99573",
+      measurementId: "G-CHJB44N3X2"
+    };
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+    /* ── Auth guard ── */
+    onAuthStateChanged(auth, user => {
+      if (!user) { window.location.href = "index.html"; return; }
+      const name = user.displayName || user.email;
+      document.getElementById("user-name").textContent = name;
+      document.getElementById("user-email").textContent = user.email;
+      document.getElementById("user-avatar").textContent = name.charAt(0).toUpperCase();
+    });
+
+    /* ── Theme ── */
+    if (localStorage.getItem("theme") === "dark") document.body.classList.add("dark");
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
+    });
+
+    /* ── Logout ── */
+    document.getElementById("logout-btn").addEventListener("click", async () => {
+      await signOut(auth); window.location.href = "index.html";
+    });
+
+    /* ── Toast helper ── */
+    function toast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 3500);
+    }
+
+    /* ── Page navigation ── */
+    const TITLES = { dashboard: "Command Overview", "map-page": "Live Map", "incidents-page": "All Incidents", "resources-page": "Resources", "ai-page": "AI Priority Engine" };
+    document.querySelectorAll(".nav-item[data-page]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".nav-item").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const p = btn.dataset.page;
+        document.querySelectorAll(".page").forEach(pg => pg.classList.remove("active"));
+        document.getElementById("page-" + p).classList.add("active");
+        document.getElementById("page-title").textContent = TITLES[p] || p;
+        if (p === "map-page") refreshMap2();
+      });
+    });
+
+    /* ── Priority colours for markers ── */
+    const MARKER_COLORS = { HIGH: "red", MEDIUM: "yellow", LOW: "green" };
+
+    /* ── Map state ── */
+    let map1, map2;
+    let incidentMarkers1 = [], incidentMarkers2 = [];
+    let incidentCircles1 = [], incidentCircles2 = [];
+    let allIncidents = [], activeFilter = "ALL";
+    let knownIds = new Set();   // track which IDs we've seen before
+
+    window.initMaps = function () {
+      const center = { lat: 19.0760, lng: 72.8777 };
+      map1 = new google.maps.Map(document.getElementById("map"), { zoom: 11, center, styles: mapStyle() });
+      map2 = new google.maps.Map(document.getElementById("map2"), { zoom: 11, center, styles: mapStyle() });
+    };
+
+    function mapStyle() {
+      return document.body.classList.contains("dark") ? DARK_MAP_STYLE : [];
+    }
+
+    /* ── Clear all markers & circles from a map ── */
+    function clearMapLayers(markerArr, circleArr) {
+      markerArr.forEach(m => m.setMap(null));
+      circleArr.forEach(c => c.setMap(null));
+      markerArr.length = 0;
+      circleArr.length = 0;
+    }
+
+    /* ── Draw all incidents on both maps ── */
+    function redrawAllMarkers(incidents) {
+      if (!map1 && !map2) return;
+
+      /* Clear previous layers */
+      clearMapLayers(incidentMarkers1, incidentCircles1);
+      clearMapLayers(incidentMarkers2, incidentCircles2);
+
+      incidents.forEach(incident => {
+        if (!incident.latitude || !incident.longitude) return;
+
+        const color  = MARKER_COLORS[incident.priority] || "blue";
+        const hexCol = color === "red" ? "#e11d48" : color === "yellow" ? "#d97706" : "#16a34a";
+        const radius = incident.priority === "HIGH" ? 1000 : incident.priority === "MEDIUM" ? 600 : 300;
+        const pos    = { lat: incident.latitude, lng: incident.longitude };
+        const isNew  = !knownIds.has(incident.id);
+        const anim   = isNew ? google.maps.Animation.DROP : null;
+
+        const infoContent = `<div style="font-family:Inter,sans-serif;padding:6px;min-width:180px;">
+          <b style="font-size:14px;">🚨 ${incident.type.toUpperCase()}</b><br/>
+          <span style="color:#555;font-size:12px;">📍 ${incident.location}</span><br/>
+          <span style="font-size:12px;">Priority: <b style="color:${hexCol}">${incident.priority}</b></span><br/>
+          <span style="font-size:12px;">Status: ${incident.status}</span><br/>
+          <span style="font-size:11px;color:#888;">Affected radius: ~${radius}m</span>
+        </div>`;
+        const infoW = new google.maps.InfoWindow({ content: infoContent });
+        const icon  = `http://maps.google.com/mapfiles/ms/icons/${color}-dot.png`;
+
+        [map1, map2].forEach((m, idx) => {
+          if (!m) return;
+          const markerArr = idx === 0 ? incidentMarkers1 : incidentMarkers2;
+          const circleArr = idx === 0 ? incidentCircles1 : incidentCircles2;
+
+          /* Marker */
+          const mk = new google.maps.Marker({
+            position: pos, map: m, title: incident.type,
+            icon, animation: anim
+          });
+          mk.addListener("click", () => infoW.open({ anchor: mk, map: m }));
+          markerArr.push(mk);
+
+          /* Affected area circle */
+          const circle = new google.maps.Circle({
+            center: pos, radius, map: m,
+            fillColor: hexCol, fillOpacity: .12,
+            strokeColor: hexCol, strokeWeight: 1.5, strokeOpacity: .5
+          });
+          circleArr.push(circle);
+        });
+
+        knownIds.add(incident.id);
+      });
+    }
+
+    /* ── Render incident card ── */
+    function timeAgo(ts) {
+      if (!ts) return "Just now";
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      const s = Math.floor((Date.now() - d) / 1000);
+      if (s < 60) return `${s}s ago`;
+      if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+      return `${Math.floor(s / 3600)}h ago`;
+    }
+
+    function renderIncidentItem(inc, id) {
+      return `<div class="incident-item">
+      <div class="incident-dot priority-${inc.priority}"></div>
+      <div class="incident-info">
+        <div class="incident-type">${inc.type.charAt(0).toUpperCase() + inc.type.slice(1)}</div>
+        <div class="incident-loc">📍 ${inc.location}</div>
+      </div>
+      <div class="incident-meta">
+        <div><span class="badge badge-${inc.priority.toLowerCase()}">${inc.priority}</span></div>
+        <div class="incident-time">${timeAgo(inc.timestamp)}</div>
+      </div>
+    </div>`;
+    }
+
+    function renderAllIncidents(list) {
+      const filtered = activeFilter === "ALL" ? list : list.filter(i => i.priority === activeFilter);
+      const el = document.getElementById("all-incidents-list");
+      if (!filtered.length) { el.innerHTML = '<div class="empty-state">No incidents found.</div>'; return; }
+      el.innerHTML = filtered.map(i => `
+      <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);">
+        <div class="incident-dot priority-${i.priority}" style="width:12px;height:12px;border-radius:50%;flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600;">${i.type.charAt(0).toUpperCase() + i.type.slice(1)}</div>
+          <div style="font-size:12px;color:var(--text-muted)">📍 ${i.location} &nbsp;|&nbsp; ${timeAgo(i.timestamp)}</div>
+          ${i.description ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px">${i.description}</div>` : ""}
+        </div>
+        <div style="text-align:right;">
+          <div><span class="badge badge-${i.priority.toLowerCase()}">${i.priority}</span></div>
+          <div><span class="badge badge-active" style="margin-top:4px">${i.status}</span></div>
+        </div>
+      </div>`).join("");
+    }
+
+    /* ── Filter tabs ── */
+    document.querySelectorAll(".tab-btn[data-filter]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn[data-filter]").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        activeFilter = btn.dataset.filter;
+        renderAllIncidents(allIncidents);
+      });
+    });
+
+    /* ── Real-time Firestore listener ── */
+    const incQ = query(collection(db, "incidents"), orderBy("timestamp", "desc"));
+    onSnapshot(incQ, snap => {
+      allIncidents = [];
+      snap.forEach(d => allIncidents.push({ id: d.id, ...d.data() }));
+
+      /* Stats */
+      const high = allIncidents.filter(i => i.priority === "HIGH").length;
+      const medium = allIncidents.filter(i => i.priority === "MEDIUM").length;
+      const low = allIncidents.filter(i => i.priority === "LOW").length;
+      document.getElementById("stat-high").textContent = high;
+      document.getElementById("stat-medium").textContent = medium;
+      document.getElementById("stat-low").textContent = low;
+      document.getElementById("stat-total").textContent = allIncidents.length;
+      document.getElementById("incident-count").textContent = allIncidents.length;
+      document.getElementById("last-updated").textContent = "Updated: " + new Date().toLocaleTimeString();
+
+      /* Incident list (recent 8) */
+      const listEl = document.getElementById("incident-list");
+      if (!allIncidents.length) {
+        listEl.innerHTML = '<div class="empty-state">No incidents reported yet.</div>';
+      } else {
+        listEl.innerHTML = allIncidents.slice(0, 8).map(i => renderIncidentItem(i, i.id)).join("");
+      }
+
+      /* Map markers — clear old, redraw all with circles */
+      redrawAllMarkers(allIncidents);
+
+      /* All incidents page */
+      renderAllIncidents(allIncidents);
+
+      /* AI Decision Log */
+      renderAiLog(allIncidents);
+      renderDispatchLog(allIncidents);
+
+      /* Toast for new incident */
+      if (snap.docChanges().some(c => c.type === "added")) {
+        const n = snap.docChanges().filter(c => c.type === "added").length;
+        toast(`🚨 ${n} new incident${n > 1 ? "s" : ""} received!`);
+      }
+    });
+
+    /* ── Render AI log ── */
+    function renderAiLog(list) {
+      const el = document.getElementById("ai-log");
+      if (!list.length) { el.innerHTML = '<div class="empty-state">No incidents analysed yet. Report one to see AI decisions.</div>'; return; }
+      el.innerHTML = list.map(i => {
+        const color = i.priority === "HIGH" ? "#e11d48" : i.priority === "MEDIUM" ? "#d97706" : "#16a34a";
+        const icon  = i.priority === "HIGH" ? "🔴" : i.priority === "MEDIUM" ? "🟡" : "🟢";
+        const rule  = i.priority === "HIGH"
+          ? "Rule matched: fire | accident | injury → HIGH"
+          : i.priority === "MEDIUM"
+          ? "Rule matched: flood | damage → MEDIUM"
+          : "Default rule: all others → LOW";
+        return `<div style="padding:12px 0;border-bottom:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:16px;">${icon}</span>
+            <span style="font-weight:600;font-size:14px;">${i.type.charAt(0).toUpperCase()+i.type.slice(1)}</span>
+            <span style="margin-left:auto;"><span class="badge badge-${i.priority.toLowerCase()}">${i.priority}</span></span>
+          </div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;">📍 ${i.location}</div>
+          <div style="font-size:11px;color:${color};font-style:italic;">🤖 ${rule}</div>
+        </div>`;
+      }).join("");
+    }
+
+    /* ── Render dispatch log ── */
+    function renderDispatchLog(list) {
+      const el = document.getElementById("dispatch-log");
+      const dispatched = list.filter(i => i.assignedResource);
+      if (!dispatched.length) { el.innerHTML = '<div class="empty-state">No dispatches yet.</div>'; return; }
+      el.innerHTML = dispatched.map(i => {
+        return `<div style="padding:12px 0;border-bottom:1px solid var(--border);">
+          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">🚒 Dispatched to ${i.type.charAt(0).toUpperCase()+i.type.slice(1)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;">📍 ${i.location}</div>
+          <div style="font-size:12px;color:var(--text-secondary);">Unit ID: <code style="font-size:11px;">${i.assignedResource}</code></div>
+        </div>`;
+      }).join("");
+    }
+
+    /* ── Resources real-time ── */
+    onSnapshot(collection(db, "resources"), snap => {
+      const el = document.getElementById("resource-list");
+      if (snap.empty) { el.innerHTML = '<div class="empty-state">No resources configured.</div>'; return; }
+      let html = "";
+      snap.forEach(d => {
+        const r = d.data();
+        const icon = r.type === "fire truck" ? "🚒" : r.type === "ambulance" ? "🚑" : "🚔";
+        html += `<div class="resource-item">
+        <span class="resource-icon">${icon}</span>
+        <div>
+          <div class="resource-name">${r.type?.toUpperCase() || "UNIT"}</div>
+          <div style="font-size:11px;color:var(--text-muted)">ID: ${d.id}</div>
+        </div>
+        <span class="resource-status ${r.available ? 'res-available' : 'res-busy'}">
+          ${r.available ? "✅ Available" : "🔴 Dispatched"}
+        </span>
+      </div>`;
+      });
+      el.innerHTML = html;
+    });
+
+    /* ── Refresh map2 when navigated to ── */
+    window.refreshMap2 = function () {
+      if (!map2) return;
+      google.maps.event.trigger(map2, "resize");
+      map2.setCenter({ lat: 19.0760, lng: 72.8777 });
+    };
+
+    /* ── Dark map style ── */
+    const DARK_MAP_STYLE = [
+      { elementType: "geometry", stylers: [{ color: "#1d1d2c" }] },
+      { elementType: "labels.text.stroke", stylers: [{ color: "#1d1d2c" }] },
+      { elementType: "labels.text.fill", stylers: [{ color: "#8ec3b9" }] },
+      { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a2a3e" }] },
+      { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#373753" }] },
+      { featureType: "water", elementType: "geometry", stylers: [{ color: "#0e1626" }] },
+      { featureType: "poi", elementType: "geometry", stylers: [{ color: "#1a1a2e" }] }
+    ];
+  </script>
+
+</body>
+
+</html>

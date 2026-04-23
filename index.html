@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — AI Disaster Command Platform</title>
+  <meta name="description"
+    content="Secure login for the AI-Powered Unified Disaster Command Platform used by emergency services." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- ===== LOGIN PAGE ===== -->
+  <div class="auth-page" id="auth-page">
+    <div class="auth-card">
+
+      <!-- Logo -->
+      <div class="auth-logo">
+        <div class="logo-icon">🚨</div>
+        <div>
+          <h1>DisasterCommand</h1>
+          <p>AI-Powered Emergency Platform</p>
+        </div>
+      </div>
+
+      <h2 class="auth-title">Welcome Back</h2>
+      <p class="auth-sub">Sign in to access the command dashboard</p>
+
+      <!-- Alert box -->
+      <div class="alert alert-error" id="login-error"></div>
+      <div class="alert alert-success" id="login-success"></div>
+
+      <!-- Login Form -->
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label for="login-email">Email Address</label>
+          <input type="email" id="login-email" placeholder="commander@emergency.gov" required autocomplete="email" />
+        </div>
+
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" required autocomplete="current-password" />
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full" id="login-btn">
+          Sign In
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Don't have an account? <a href="register.html">Create one</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FIREBASE SDK ===== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+    /* ── Firebase Config ── */
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOfdPvigodx9J6c31TtU_kplvL4L89vYk",
+      authDomain: "idealab-f21d9.firebaseapp.com",
+      projectId: "idealab-f21d9",
+      storageBucket: "idealab-f21d9.firebasestorage.app",
+      messagingSenderId: "549958645898",
+      appId: "1:549958645898:web:fce17da515367abcc99573",
+      measurementId: "G-CHJB44N3X2"
+    };
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    /* ── If already logged in, go straight to dashboard ── */
+    onAuthStateChanged(auth, user => {
+      if (user) window.location.href = "dashboard.html";
+    });
+
+    /* ── Theme: persist preference ── */
+    if (localStorage.getItem("theme") === "dark") {
+      document.body.classList.add("dark");
+    }
+
+    /* ── Helper: show alert ── */
+    function showAlert(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 5000);
+    }
+
+    /* ── Login Form Submit ── */
+    document.getElementById("login-form").addEventListener("submit", async e => {
+      e.preventDefault();
+
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value;
+      const btn = document.getElementById("login-btn");
+
+      if (!email || !password) {
+        showAlert("login-error", "Please fill in all fields.");
+        return;
+      }
+
+      // Show loading state
+      btn.innerHTML = '<span class="spinner"></span> Signing in…';
+      btn.disabled = true;
+
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        showAlert("login-success", "Login successful! Redirecting…");
+        setTimeout(() => { window.location.href = "dashboard.html"; }, 800);
+      } catch (err) {
+        const msg = {
+          "auth/user-not-found": "No account found with this email.",
+          "auth/wrong-password": "Incorrect password. Try again.",
+          "auth/invalid-email": "Invalid email address.",
+          "auth/too-many-requests": "Too many attempts. Please wait."
+        }[err.code] || err.message;
+        showAlert("login-error", msg);
+        btn.textContent = "Sign In";
+        btn.disabled = false;
+      }
+    });
+  </script>
+
+</body>
+
+</html>

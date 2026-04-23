@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Report Incident — AI Disaster Command Platform</title>
+  <meta name="description" content="Submit a new emergency incident for AI-based prioritization and dispatch." />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* ── Report page extra styles ── */
+    .report-wrapper {
+      min-height: 100vh;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .report-topbar {
+      height: 64px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .report-topbar .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .report-topbar .logo span {
+      font-size: 22px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .report-body {
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .report-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+      padding: 40px;
+      width: 100%;
+      max-width: 640px;
+      animation: slideUp .5s ease;
+    }
+
+    .report-header {
+      margin-bottom: 30px;
+    }
+
+    .report-header h1 {
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    .report-header p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    /* Priority Preview badge */
+    .priority-preview {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-radius: var(--radius-sm);
+      border: 2px solid var(--border);
+      margin-bottom: 24px;
+      transition: var(--transition);
+    }
+
+    .priority-preview.HIGH {
+      border-color: #e11d48;
+      background: rgba(225, 29, 72, .07);
+    }
+
+    .priority-preview.MEDIUM {
+      border-color: #f59e0b;
+      background: rgba(245, 158, 11, .07);
+    }
+
+    .priority-preview.LOW {
+      border-color: #22c55e;
+      background: rgba(34, 197, 94, .07);
+    }
+
+    .priority-preview .pp-icon {
+      font-size: 28px;
+    }
+
+    .priority-preview .pp-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .priority-preview .pp-value {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    /* Type grid */
+    .type-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .type-btn {
+      padding: 12px 8px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: var(--transition);
+    }
+
+    .type-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .type-btn.active {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .type-btn .type-icon {
+      display: block;
+      font-size: 22px;
+      margin-bottom: 4px;
+    }
+
+    /* Result box */
+    .result-box {
+      background: var(--bg);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      padding: 20px;
+      margin-top: 24px;
+      display: none;
+    }
+
+    .result-box.show {
+      display: block;
+      animation: fadeIn .4s ease;
+    }
+
+    .result-box h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .result-row:last-child {
+      border-bottom: none;
+    }
+
+    .result-row .rk {
+      color: var(--text-muted);
+    }
+
+    .result-row .rv {
+      font-weight: 600;
+    }
+
+    /* Resource assigned box */
+    .resource-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(34, 197, 94, .08);
+      border: 1px solid rgba(34, 197, 94, .3);
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      margin-top: 14px;
+      font-size: 13px;
+    }
+
+    .resource-box .rb-icon {
+      font-size: 24px;
+    }
+
+    .resource-box .rb-text strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 700;
+      color: #16a34a;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="report-wrapper">
+
+    <!-- Top Bar -->
+    <div class="report-topbar">
+      <div class="logo">
+        <span>🚨</span>
+        <div>
+          <div>DisasterCommand</div>
+          <div style="font-size:11px;font-weight:400;color:var(--text-muted)">Incident Reporting</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <button class="theme-toggle" id="theme-toggle" title="Toggle Dark/Light Mode"
+          aria-label="Toggle theme"></button>
+        <a href="dashboard.html" class="btn btn-outline btn-sm">← Dashboard</a>
+        <button class="btn btn-danger btn-sm" id="logout-btn">Logout</button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div class="report-body">
+      <div class="report-card">
+
+        <div class="report-header">
+          <h1>🚨 Report New Incident</h1>
+          <p>Fill in the details. Our AI will assign priority and dispatch the nearest resource.</p>
+        </div>
+
+        <!-- Priority Preview (updates live as type is chosen) -->
+        <div class="priority-preview" id="priority-preview">
+          <span class="pp-icon">❓</span>
+          <div>
+            <div class="pp-label">Estimated Priority</div>
+            <div class="pp-value" id="pp-value">Select incident type</div>
+          </div>
+        </div>
+
+        <div class="alert alert-error" id="rep-error"></div>
+        <div class="alert alert-success" id="rep-success"></div>
+
+        <form id="report-form" novalidate>
+
+          <!-- Incident Type (visual buttons) -->
+          <div class="form-group">
+            <label>Incident Type</label>
+            <div class="type-grid">
+              <button type="button" class="type-btn" data-type="fire">
+                <span class="type-icon">🔥</span>Fire
+              </button>
+              <button type="button" class="type-btn" data-type="accident">
+                <span class="type-icon">🚗</span>Accident
+              </button>
+              <button type="button" class="type-btn" data-type="injury">
+                <span class="type-icon">🩹</span>Injury
+              </button>
+              <button type="button" class="type-btn" data-type="flood">
+                <span class="type-icon">🌊</span>Flood
+              </button>
+              <button type="button" class="type-btn" data-type="damage">
+                <span class="type-icon">🏚️</span>Damage
+              </button>
+              <button type="button" class="type-btn" data-type="other">
+                <span class="type-icon">⚠️</span>Other
+              </button>
+            </div>
+            <!-- Hidden input holds selected type -->
+            <input type="hidden" id="incident-type" required />
+          </div>
+
+          <!-- Location -->
+          <div class="form-group">
+            <label for="incident-location">Location / Address</label>
+            <input type="text" id="incident-location" placeholder="e.g. MG Road, Mumbai — or use GPS below" required />
+          </div>
+
+          <!-- Auto-detect GPS -->
+          <button type="button" class="btn btn-outline btn-sm" id="gps-btn" style="margin-bottom:20px;">
+            📍 Auto-Detect My Location
+          </button>
+          <input type="hidden" id="incident-lat" />
+          <input type="hidden" id="incident-lng" />
+
+          <!-- Description -->
+          <div class="form-group">
+            <label for="incident-desc">Brief Description (optional)</label>
+            <textarea id="incident-desc" placeholder="Describe what you see…"></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full" id="submit-btn">
+            🚀 Submit Incident Report
+          </button>
+        </form>
+
+        <!-- Result after submission -->
+        <div class="result-box" id="result-box">
+          <h3>📋 Incident Filed</h3>
+          <div class="result-row"><span class="rk">Type</span><span class="rv" id="r-type">—</span></div>
+          <div class="result-row"><span class="rk">Location</span><span class="rv" id="r-loc">—</span></div>
+          <div class="result-row"><span class="rk">Priority</span><span class="rv" id="r-priority">—</span></div>
+          <div class="result-row"><span class="rk">Status</span><span class="rv" id="r-status">—</span></div>
+          <div class="result-row"><span class="rk">Incident ID</span><span class="rv" id="r-id"
+              style="font-size:12px;font-family:monospace">—</span></div>
+
+          <!-- Resource assigned -->
+          <div class="resource-box" id="resource-box" style="display:none">
+            <span class="rb-icon" id="rb-icon">🚒</span>
+            <div class="rb-text">
+              <strong id="rb-name">Resource assigned</strong>
+              <span id="rb-detail" style="color:var(--text-secondary)"></span>
+            </div>
+          </div>
+
+          <button class="btn btn-outline btn-full" style="margin-top:16px;" onclick="resetForm()">
+            + Report Another Incident
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- FIREBASE + SCRIPT -->
+  <script type="module">
+    import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, serverTimestamp }
+      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    /* ── Firebase Config ── */
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOfdPvigodx9J6c31TtU_kplvL4L89vYk",
+      authDomain: "idealab-f21d9.firebaseapp.com",
+      projectId: "idealab-f21d9",
+      storageBucket: "idealab-f21d9.firebasestorage.app",
+      messagingSenderId: "549958645898",
+      appId: "1:549958645898:web:fce17da515367abcc99573",
+      measurementId: "G-CHJB44N3X2"
+    };
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    /* ── Auth guard ── */
+    onAuthStateChanged(auth, user => {
+      if (!user) window.location.href = "index.html";
+    });
+
+    /* ── Theme ── */
+    const themeBtn = document.getElementById("theme-toggle");
+    if (localStorage.getItem("theme") === "dark") document.body.classList.add("dark");
+    themeBtn.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
+    });
+
+    /* ── Logout ── */
+    document.getElementById("logout-btn").addEventListener("click", async () => {
+      await signOut(auth);
+      window.location.href = "index.html";
+    });
+
+    /* ── AI Priority logic (mirrors server.py) ── */
+    const HIGH_TYPES = ["fire", "accident", "injury"];
+    const MEDIUM_TYPES = ["flood", "damage"];
+    function aiPriority(type) {
+      if (HIGH_TYPES.includes(type.toLowerCase())) return "HIGH";
+      if (MEDIUM_TYPES.includes(type.toLowerCase())) return "MEDIUM";
+      return "LOW";
+    }
+
+    /* ── Priority icons & labels ── */
+    const PRIORITY_META = {
+      HIGH: { icon: "🔴", label: "HIGH — Critical Response Required" },
+      MEDIUM: { icon: "🟡", label: "MEDIUM — Urgent Attention Needed" },
+      LOW: { icon: "🟢", label: "LOW — Monitoring / Scheduled" }
+    };
+
+    /* ── Type button selection ── */
+    let selectedType = "";
+    document.querySelectorAll(".type-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".type-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        selectedType = btn.dataset.type;
+        document.getElementById("incident-type").value = selectedType;
+
+        // Update priority preview
+        const p = aiPriority(selectedType);
+        const meta = PRIORITY_META[p];
+        const prev = document.getElementById("priority-preview");
+        prev.className = `priority-preview ${p}`;
+        prev.querySelector(".pp-icon").textContent = meta.icon;
+        document.getElementById("pp-value").textContent = meta.label;
+      });
+    });
+
+    /* ── GPS auto-detect ── */
+    document.getElementById("gps-btn").addEventListener("click", () => {
+      const btn = document.getElementById("gps-btn");
+      btn.textContent = "📡 Detecting…";
+      btn.disabled = true;
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          document.getElementById("incident-lat").value = pos.coords.latitude;
+          document.getElementById("incident-lng").value = pos.coords.longitude;
+          document.getElementById("incident-location").value =
+            `Lat: ${pos.coords.latitude.toFixed(5)}, Lng: ${pos.coords.longitude.toFixed(5)}`;
+          btn.textContent = "✅ Location Detected";
+        },
+        () => {
+          btn.textContent = "❌ GPS Unavailable — Enter Manually";
+          btn.disabled = false;
+        }
+      );
+    });
+
+    /* ── Alert helpers ── */
+    function showAlert(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 5000);
+    }
+
+    /* ── Helper: fetch with timeout ── */
+    async function fetchWithTimeout(url, options, ms = 5000) {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), ms);
+      try {
+        const r = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return r;
+      } catch (e) {
+        clearTimeout(id);
+        throw e;
+      }
+    }
+
+    /* ── Find nearest available resource (non-blocking, never throws) ── */
+    async function findNearestResource(lat, lng) {
+      try {
+        /* Read ALL resources and filter in JS — avoids needing a Firestore index */
+        const snap = await getDocs(collection(db, "resources"));
+        if (snap.empty) return null;
+
+        let nearest = null, minDist = Infinity;
+        snap.forEach(docSnap => {
+          const r = docSnap.data();
+          if (!r.available) return;   // skip busy units
+          const d = Math.hypot((r.latitude - lat), (r.longitude - lng));
+          if (d < minDist) { minDist = d; nearest = { id: docSnap.id, ...r }; }
+        });
+        return nearest;
+      } catch (err) {
+        /* Firestore permission error or no resources collection — silently skip */
+        console.warn("Resource lookup skipped:", err.message);
+        return null;
+      }
+    }
+
+    /* ── Show permanent error (doesn't auto-hide) ── */
+    function showError(msg) {
+      const el = document.getElementById("rep-error");
+      el.textContent = "❌ " + msg;
+      el.classList.add("show");
+    }
+    function clearError() {
+      document.getElementById("rep-error").classList.remove("show");
+    }
+
+    /* ── Form submit ── */
+    document.getElementById("report-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      clearError();
+
+      const type     = document.getElementById("incident-type").value;
+      const location = document.getElementById("incident-location").value.trim();
+      const lat      = parseFloat(document.getElementById("incident-lat").value)  || 19.0760;
+      const lng      = parseFloat(document.getElementById("incident-lng").value)  || 72.8777;
+      const desc     = document.getElementById("incident-desc").value.trim();
+      const btn      = document.getElementById("submit-btn");
+
+      if (!type)     { showError("Please select an incident type.");     return; }
+      if (!location) { showError("Please enter the incident location."); return; }
+
+      btn.innerHTML = '<span class="spinner"></span> Processing with AI…';
+      btn.disabled  = true;
+
+      try {
+        /* STEP 1 — AI Priority (Python backend, 5s timeout, falls back to JS) */
+        let priority = aiPriority(type);
+        try {
+          const res = await fetchWithTimeout("http://localhost:8000/report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type, location, latitude: lat, longitude: lng })
+          }, 5000);
+          if (res.ok) { const d = await res.json(); priority = d.priority; }
+        } catch (_) {
+          console.warn("Backend offline — using client-side AI.");
+        }
+
+        /* STEP 2 — Save incident to Firestore FIRST (resource lookup is secondary) */
+        const incidentRef = await addDoc(collection(db, "incidents"), {
+          type, location,
+          latitude: lat, longitude: lng,
+          priority,
+          status: "Active",
+          description: desc,
+          timestamp: serverTimestamp()
+        });
+
+        /* STEP 3 — Find & dispatch nearest resource (optional, non-blocking) */
+        const resource = await findNearestResource(lat, lng);
+        if (resource) {
+          /* Update incident with assigned resource */
+          await updateDoc(doc(db, "incidents", incidentRef.id), {
+            assignedResource: resource.id
+          });
+          /* Mark resource as busy */
+          await updateDoc(doc(db, "resources", resource.id), {
+            available: false,
+            assignedTo: incidentRef.id
+          });
+        }
+
+        /* STEP 4 — Show result card */
+        document.getElementById("report-form").style.display = "none";
+        document.getElementById("result-box").classList.add("show");
+        document.getElementById("r-type").textContent     = type.charAt(0).toUpperCase() + type.slice(1);
+        document.getElementById("r-loc").textContent      = location;
+        document.getElementById("r-priority").innerHTML   = `<span class="badge badge-${priority.toLowerCase()}">${priority}</span>`;
+        document.getElementById("r-status").innerHTML     = `<span class="badge badge-active">Active</span>`;
+        document.getElementById("r-id").textContent       = incidentRef.id;
+
+        if (resource) {
+          const rb = document.getElementById("resource-box");
+          rb.style.display = "flex";
+          document.getElementById("rb-icon").textContent   = resource.type === "fire truck" ? "🚒"
+                                                            : resource.type === "ambulance"  ? "🚑" : "🚔";
+          document.getElementById("rb-name").textContent   = `${resource.type.toUpperCase()} dispatched`;
+          document.getElementById("rb-detail").textContent = `Unit ID: ${resource.id} — En route`;
+        }
+
+      } catch (err) {
+        console.error("Submission error:", err);
+        showError(err.message || "Unknown error — check console (F12) for details.");
+        btn.innerHTML = "🚀 Submit Incident Report";
+        btn.disabled  = false;
+      }
+    });
+
+    /* ── Reset form ── */
+    window.resetForm = function () {
+      document.getElementById("report-form").style.display = "";
+      document.getElementById("result-box").classList.remove("show");
+      document.getElementById("resource-box").style.display = "none";
+      document.getElementById("report-form").reset();
+      document.querySelectorAll(".type-btn").forEach(b => b.classList.remove("active"));
+      selectedType = "";
+      const prev = document.getElementById("priority-preview");
+      prev.className = "priority-preview";
+      prev.querySelector(".pp-icon").textContent = "❓";
+      document.getElementById("pp-value").textContent = "Select incident type";
+      document.getElementById("submit-btn").textContent = "🚀 Submit Incident Report";
+      document.getElementById("submit-btn").disabled = false;
+      document.getElementById("gps-btn").textContent = "📍 Auto-Detect My Location";
+      document.getElementById("gps-btn").disabled = false;
+      document.getElementById("incident-lat").value = "";
+      document.getElementById("incident-lng").value = "";
+    };
+  </script>
+
+</body>
+
+</html>

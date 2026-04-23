@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Live Ops — AI Disaster Command</title>
+<link rel="stylesheet" href="style.css"/>
+<style>
+.ops-layout{display:flex;flex-direction:column;min-height:100vh;background:var(--bg);}
+.ops-topbar{height:60px;background:var(--bg-card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:50;}
+.ops-body{display:grid;grid-template-columns:1fr 360px;flex:1;height:calc(100vh - 60px);}
+#ops-map{width:100%;height:100%;}
+.ops-panel{overflow-y:auto;background:var(--bg-card);border-left:1px solid var(--border);display:flex;flex-direction:column;gap:0;}
+.panel-section{border-bottom:1px solid var(--border);padding:16px;}
+.panel-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.sensor-box{padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg);}
+.sensor-val{font-size:20px;font-weight:800;}
+.sensor-lbl{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.sensor-bar{height:6px;border-radius:999px;background:var(--border);margin-top:6px;overflow:hidden;}
+.sensor-fill{height:100%;border-radius:999px;transition:width 1s ease;}
+.alert-banner{padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+.alert-critical{background:rgba(225,29,72,.12);border:1px solid rgba(225,29,72,.4);color:#e11d48;}
+.alert-warning{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#d97706;}
+.alert-safe{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.4);color:#16a34a;}
+.team-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.team-row:last-child{border-bottom:none;}
+.team-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.pulse{animation:pulse-dot 1.5s infinite;}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(1.5);}}
+.weather-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;border-bottom:1px solid var(--border);}
+.weather-row:last-child{border-bottom:none;}
+.weather-key{color:var(--text-muted);}
+.legend-row{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px;}
+.legend-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;}
+@media(max-width:900px){.ops-body{grid-template-columns:1fr;grid-template-rows:50vh 1fr;}}
+</style>
+</head>
+<body>
+<div class="ops-layout">
+<div class="ops-topbar">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <a href="dashboard.html" class="btn btn-outline btn-sm">← Dashboard</a>
+    <span style="font-size:16px;font-weight:700;">🌐 Live Operations Center</span>
+    <span class="live-dot">LIVE</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme"></button>
+    <button class="btn btn-danger btn-sm" id="logout-btn">Logout</button>
+  </div>
+</div>
+
+<div class="ops-body">
+  <div id="ops-map"></div>
+
+  <div class="ops-panel">
+
+    <!-- ALERT BANNER -->
+    <div class="panel-section">
+      <div class="panel-title">🚨 Active Alerts</div>
+      <div id="alert-banners">
+        <div class="alert-safe">✅ All systems nominal</div>
+      </div>
+    </div>
+
+    <!-- WEATHER AI -->
+    <div class="panel-section">
+      <div class="panel-title">🌤️ AI Weather Prediction</div>
+      <div class="sensor-grid" style="margin-bottom:10px;">
+        <div class="sensor-box">
+          <div class="sensor-val" id="w-temp">28°C</div>
+          <div class="sensor-lbl">Temperature</div>
+        </div>
+        <div class="sensor-box">
+          <div class="sensor-val" id="w-humidity">72%</div>
+          <div class="sensor-lbl">Humidity</div>
+        </div>
+        <div class="sensor-box">
+          <div class="sensor-val" id="w-wind">18km/h</div>
+          <div class="sensor-lbl">Wind Speed</div>
+        </div>
+        <div class="sensor-box">
+          <div class="sensor-val" id="w-rain">4mm</div>
+          <div class="sensor-lbl">Rainfall</div>
+        </div>
+      </div>
+      <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;border:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">AI RISK FORECAST (6h)</div>
+        <div id="weather-forecast" style="font-size:13px;font-weight:600;color:#d97706;">⚠️ Moderate flood risk — rainfall expected to intensify</div>
+      </div>
+    </div>
+
+    <!-- DISASTER SENSORS -->
+    <div class="panel-section">
+      <div class="panel-title">📡 Disaster Sensors</div>
+      <div style="margin-bottom:10px;">
+        <div class="weather-row"><span class="weather-key">🌊 Flood Level</span><span id="s-flood" style="font-weight:700;">1.2m</span></div>
+        <div class="sensor-bar"><div id="s-flood-bar" class="sensor-fill" style="width:24%;background:#3b82f6;"></div></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="weather-row"><span class="weather-key">🌍 Seismic Activity</span><span id="s-seismic" style="font-weight:700;">1.8 Richter</span></div>
+        <div class="sensor-bar"><div id="s-seismic-bar" class="sensor-fill" style="width:18%;background:#f59e0b;"></div></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div class="weather-row"><span class="weather-key">🌀 Wind Pressure</span><span id="s-wind" style="font-weight:700;">1010 hPa</span></div>
+        <div class="sensor-bar"><div id="s-wind-bar" class="sensor-fill" style="width:40%;background:#8b5cf6;"></div></div>
+      </div>
+      <div>
+        <div class="weather-row"><span class="weather-key">🌊 Tsunami Warning</span><span id="s-tsunami" style="font-weight:700;color:#16a34a;">NONE</span></div>
+        <div class="sensor-bar"><div id="s-tsunami-bar" class="sensor-fill" style="width:5%;background:#22c55e;"></div></div>
+      </div>
+    </div>
+
+    <!-- TEAMS -->
+    <div class="panel-section">
+      <div class="panel-title">👥 Field Teams</div>
+      <div id="team-list">
+        <div class="team-row"><div class="team-dot pulse" style="background:#22c55e;"></div><div><b>Fire Unit A</b><div style="font-size:11px;color:var(--text-muted);">🚒 En route — Mira Road</div></div><span style="margin-left:auto;font-size:11px;color:#22c55e;">Active</span></div>
+        <div class="team-row"><div class="team-dot pulse" style="background:#22c55e;"></div><div><b>Ambulance B1</b><div style="font-size:11px;color:var(--text-muted);">🚑 On scene — Andheri</div></div><span style="margin-left:auto;font-size:11px;color:#e11d48;">Busy</span></div>
+        <div class="team-row"><div class="team-dot" style="background:#94a3b8;"></div><div><b>Police Unit C</b><div style="font-size:11px;color:var(--text-muted);">🚔 Standby — Thane HQ</div></div><span style="margin-left:auto;font-size:11px;color:var(--text-muted);">Standby</span></div>
+        <div class="team-row"><div class="team-dot pulse" style="background:#3b82f6;"></div><div><b>Rescue Team D</b><div style="font-size:11px;color:var(--text-muted);">🚁 Aerial — Vasai</div></div><span style="margin-left:auto;font-size:11px;color:#3b82f6;">Aerial</span></div>
+      </div>
+    </div>
+
+    <!-- RISK ZONE LEGEND -->
+    <div class="panel-section">
+      <div class="panel-title">🗺️ Risk Zone Legend</div>
+      <div class="legend-row"><div class="legend-dot" style="background:rgba(225,29,72,.7);"></div><span>High Risk Zone (incident cluster)</span></div>
+      <div class="legend-row"><div class="legend-dot" style="background:rgba(245,158,11,.7);"></div><span>Medium Risk / Affected Area</span></div>
+      <div class="legend-row"><div class="legend-dot" style="background:rgba(34,197,94,.5);"></div><span>Low Risk Zone</span></div>
+      <div class="legend-row"><div class="legend-dot" style="background:rgba(59,130,246,.6);"></div><span>Flood Prone Area</span></div>
+      <div class="legend-row"><div class="legend-dot" style="background:#f43f5e;border:2px solid #fff;"></div><span>🔴 Incident Marker</span></div>
+      <div class="legend-row"><div class="legend-dot" style="background:#3b82f6;border:2px solid #fff;"></div><span>🔵 Resource / Team</span></div>
+    </div>
+
+    <!-- INCIDENTS FROM FIRESTORE -->
+    <div class="panel-section">
+      <div class="panel-title">📋 Live Incident Feed</div>
+      <div id="live-feed"><div class="empty-state" style="font-size:13px;">Loading…</div></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD0-kgoXmjkZ8oW0MePbAyu_aT_JCg-AjQ&callback=initOpsMap" async defer></script>
+<script type="module">
+import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:"AIzaSyDOfdPvigodx9J6c31TtU_kplvL4L89vYk",
+  authDomain:"idealab-f21d9.firebaseapp.com",
+  projectId:"idealab-f21d9",
+  storageBucket:"idealab-f21d9.firebasestorage.app",
+  messagingSenderId:"549958645898",
+  appId:"1:549958645898:web:fce17da515367abcc99573"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+/* Auth guard */
+onAuthStateChanged(auth, u => { if (!u) window.location.href = "index.html"; });
+document.getElementById("logout-btn").addEventListener("click", async () => { await signOut(auth); window.location.href="index.html"; });
+
+/* Theme */
+if (localStorage.getItem("theme") === "dark") document.body.classList.add("dark");
+document.getElementById("theme-toggle").addEventListener("click", () => {
+  document.body.classList.toggle("dark");
+  localStorage.setItem("theme", document.body.classList.contains("dark") ? "dark" : "light");
+});
+
+/* ── Map globals ── */
+let opsMap, incidentMarkers = [], resourceMarkers = [], circles = [], zones = [];
+let allIncidents = [];
+
+/* Static resource positions */
+const RESOURCES = [
+  {name:"Fire Unit A",   type:"fire truck", lat:19.2812, lng:72.8726, status:"active"},
+  {name:"Ambulance B1",  type:"ambulance",  lat:19.1136, lng:72.8697, status:"busy"},
+  {name:"Police Unit C", type:"police car", lat:19.2183, lng:72.9781, status:"standby"},
+  {name:"Rescue D",      type:"helicopter", lat:19.3919, lng:72.8397, status:"aerial"},
+  {name:"Fire Unit B",   type:"fire truck", lat:19.2307, lng:72.8567, status:"active"},
+  {name:"Ambulance C2",  type:"ambulance",  lat:19.1863, lng:72.8479, status:"active"},
+];
+
+/* Risk zones (static polygons around Mumbai) */
+const RISK_ZONES = [
+  { label:"High Risk — Coastal", color:"rgba(225,29,72,0.15)", stroke:"#e11d48", coords:[{lat:19.05,lng:72.82},{lat:19.07,lng:72.87},{lat:19.04,lng:72.90},{lat:19.02,lng:72.86}] },
+  { label:"Flood Prone — Low-lying", color:"rgba(59,130,246,0.15)", stroke:"#3b82f6", coords:[{lat:19.19,lng:72.84},{lat:19.21,lng:72.90},{lat:19.17,lng:72.92},{lat:19.15,lng:72.86}] },
+  { label:"Medium Risk — Industrial", color:"rgba(245,158,11,0.15)", stroke:"#f59e0b", coords:[{lat:19.25,lng:72.86},{lat:19.28,lng:72.91},{lat:19.24,lng:72.94},{lat:19.21,lng:72.89}] },
+  { label:"Safe Zone — Evacuation", color:"rgba(34,197,94,0.12)", stroke:"#22c55e", coords:[{lat:19.30,lng:72.78},{lat:19.33,lng:72.84},{lat:19.30,lng:72.88},{lat:19.27,lng:72.82}] },
+];
+
+/* Icon URLs */
+function resourceIcon(type) {
+  const colors = {
+    "fire truck":"#e11d48","ambulance":"#3b82f6","police car":"#8b5cf6","helicopter":"#06b6d4"
+  };
+  const c = colors[type] || "#64748b";
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='${c}' stroke='white' stroke-width='2'/><text x='16' y='21' text-anchor='middle' font-size='14'>${type==="fire truck"?"🚒":type==="ambulance"?"🚑":type==="helicopter"?"🚁":"🚔"}</text></svg>`;
+  return {url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg), scaledSize: new google.maps.Size(36,36), anchor: new google.maps.Point(18,18)};
+}
+
+window.initOpsMap = function() {
+  const center = {lat:19.1760, lng:72.8777};
+  opsMap = new google.maps.Map(document.getElementById("ops-map"), {
+    zoom:11, center,
+    styles: document.body.classList.contains("dark") ? DARK_STYLE : [],
+    mapTypeControl: false
+  });
+
+  /* Draw risk zones */
+  RISK_ZONES.forEach(z => {
+    const poly = new google.maps.Polygon({
+      paths: z.coords, map: opsMap,
+      fillColor: z.color, fillOpacity:1,
+      strokeColor: z.stroke, strokeWeight:2, strokeOpacity:.7
+    });
+    zones.push(poly);
+    google.maps.event.addListener(poly, "click", ev => {
+      new google.maps.InfoWindow({content:`<b>${z.label}</b>`}).open({map:opsMap, shouldFocus:false, position:ev.latLng});
+    });
+  });
+
+  /* Place resource markers */
+  RESOURCES.forEach(r => {
+    const mk = new google.maps.Marker({
+      position:{lat:r.lat,lng:r.lng}, map:opsMap, title:r.name,
+      icon: resourceIcon(r.type)
+    });
+    const statusColor = r.status==="active"?"#22c55e":r.status==="busy"?"#e11d48":r.status==="aerial"?"#3b82f6":"#94a3b8";
+    const iw = new google.maps.InfoWindow({
+      content:`<div style='font-family:Inter,sans-serif;padding:4px;min-width:160px;'>
+        <b style='font-size:14px;'>${r.name}</b><br/>
+        <span style='color:#555;font-size:12px;'>Type: ${r.type}</span><br/>
+        <span style='font-size:12px;color:${statusColor};font-weight:600;'>${r.status.toUpperCase()}</span>
+      </div>`
+    });
+    mk.addListener("click", () => iw.open({anchor:mk,map:opsMap}));
+    resourceMarkers.push(mk);
+  });
+
+  /* Animate resource markers (simulate movement) */
+  simulateTeamMovement();
+};
+
+/* Simulate team movement every 5 seconds */
+function simulateTeamMovement() {
+  setInterval(() => {
+    resourceMarkers.forEach((mk, i) => {
+      const pos = mk.getPosition();
+      const jitter = () => (Math.random() - 0.5) * 0.003;
+      mk.setPosition({lat: pos.lat() + jitter(), lng: pos.lng() + jitter()});
+    });
+  }, 5000);
+}
+
+/* ── Firestore real-time ── */
+onSnapshot(query(collection(db,"incidents"), orderBy("timestamp","desc")), snap => {
+  allIncidents = [];
+  snap.forEach(d => allIncidents.push({id:d.id,...d.data()}));
+
+  updateAlerts(allIncidents);
+  updateLiveFeed(allIncidents);
+
+  /* Re-draw incident markers + circles */
+  incidentMarkers.forEach(m => m.setMap(null));
+  circles.forEach(c => c.setMap(null));
+  incidentMarkers = []; circles = [];
+
+  allIncidents.forEach(inc => {
+    if (!inc.latitude || !inc.longitude) return;
+    const pos = {lat:inc.latitude, lng:inc.longitude};
+    const color = inc.priority==="HIGH"?"#e11d48":inc.priority==="MEDIUM"?"#f59e0b":"#22c55e";
+    const radius = inc.priority==="HIGH"?1200:inc.priority==="MEDIUM"?800:400;
+
+    /* Affected area circle */
+    const circle = new google.maps.Circle({
+      center:pos, radius, map:opsMap,
+      fillColor:color, fillOpacity:.15,
+      strokeColor:color, strokeWeight:2, strokeOpacity:.6
+    });
+    circles.push(circle);
+
+    /* Incident marker */
+    const mk = new google.maps.Marker({
+      position:pos, map:opsMap, title:inc.type,
+      icon:{url:`http://maps.google.com/mapfiles/ms/icons/${inc.priority==="HIGH"?"red":inc.priority==="MEDIUM"?"yellow":"green"}-dot.png`}
+    });
+    const iw = new google.maps.InfoWindow({
+      content:`<div style='font-family:Inter,sans-serif;padding:4px;'>
+        <b>🚨 ${inc.type.toUpperCase()}</b><br/>
+        <span style='color:#555;font-size:12px;'>📍 ${inc.location}</span><br/>
+        <b style='color:${color};font-size:12px;'>${inc.priority} PRIORITY</b><br/>
+        <span style='font-size:12px;'>Affected radius: ${radius}m</span>
+      </div>`
+    });
+    mk.addListener("click", () => iw.open({anchor:mk,map:opsMap}));
+    incidentMarkers.push(mk);
+  });
+});
+
+/* ── Resources snapshot ── */
+onSnapshot(collection(db,"resources"), snap => {
+  /* Update team list from Firestore */
+  const teamEl = document.getElementById("team-list");
+  if (snap.empty) return;
+  teamEl.innerHTML = "";
+  snap.forEach(d => {
+    const r = d.data();
+    const icon = r.type==="fire truck"?"🚒":r.type==="ambulance"?"🚑":"🚔";
+    const statusColor = r.available ? "#22c55e" : "#e11d48";
+    const statusText  = r.available ? "Available" : "Dispatched";
+    teamEl.innerHTML += `<div class="team-row">
+      <div class="team-dot ${r.available?"pulse":""}" style="background:${statusColor};"></div>
+      <div><b>${icon} ${r.type?.toUpperCase()}</b><div style="font-size:11px;color:var(--text-muted);">ID: ${d.id.slice(0,8)}</div></div>
+      <span style="margin-left:auto;font-size:11px;color:${statusColor};">${statusText}</span>
+    </div>`;
+  });
+});
+
+/* Update alert banners based on incidents */
+function updateAlerts(incidents) {
+  const el = document.getElementById("alert-banners");
+  const high = incidents.filter(i=>i.priority==="HIGH").length;
+  const med  = incidents.filter(i=>i.priority==="MEDIUM").length;
+  let html = "";
+  if (high>0) html += `<div class="alert-banner alert-critical">🔴 ${high} CRITICAL incident${high>1?"s":""} active — Immediate response required</div>`;
+  if (med>0)  html += `<div class="alert-banner alert-warning">🟡 ${med} medium priority incident${med>1?"s":""} — Monitor closely</div>`;
+  if (!high && !med) html = `<div class="alert-banner alert-safe">✅ No critical incidents — All systems nominal</div>`;
+  el.innerHTML = html;
+}
+
+/* Live incident feed */
+function updateLiveFeed(incidents) {
+  const el = document.getElementById("live-feed");
+  if (!incidents.length) { el.innerHTML='<div style="font-size:13px;color:var(--text-muted);">No incidents yet.</div>'; return; }
+  el.innerHTML = incidents.slice(0,5).map(i=>{
+    const color=i.priority==="HIGH"?"#e11d48":i.priority==="MEDIUM"?"#d97706":"#16a34a";
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      <span style="color:${color};font-weight:700;">[${i.priority}]</span> ${i.type} — ${i.location}
+    </div>`;
+  }).join("");
+}
+
+/* ── Sensor simulation ── */
+function updateSensors() {
+  const flood   = +(1.0 + Math.random()*2.5).toFixed(1);
+  const seismic = +(1.0 + Math.random()*4.5).toFixed(1);
+  const wind    = Math.round(995 + Math.random()*30);
+  const tsunami = seismic > 5.0 ? "WARNING ⚠️" : flood > 3.0 ? "WATCH" : "NONE";
+  const tsunamiColor = seismic>5?"#e11d48":flood>3?"#d97706":"#16a34a";
+
+  document.getElementById("s-flood").textContent    = flood+"m";
+  document.getElementById("s-seismic").textContent  = seismic+" Richter";
+  document.getElementById("s-wind").textContent     = wind+" hPa";
+  document.getElementById("s-tsunami").textContent  = tsunami;
+  document.getElementById("s-tsunami").style.color  = tsunamiColor;
+  document.getElementById("s-flood-bar").style.width    = Math.min(flood/5*100,100)+"%";
+  document.getElementById("s-seismic-bar").style.width  = Math.min(seismic/8*100,100)+"%";
+  document.getElementById("s-wind-bar").style.width     = Math.min((wind-990)/40*100,100)+"%";
+  document.getElementById("s-tsunami-bar").style.width  = seismic>5?"90%":flood>3?"40%":"5%";
+  document.getElementById("s-tsunami-bar").style.background = tsunamiColor;
+  document.getElementById("s-seismic-bar").style.background = seismic>4?"#e11d48":seismic>2.5?"#f59e0b":"#22c55e";
+  document.getElementById("s-flood-bar").style.background   = flood>3?"#e11d48":flood>2?"#f59e0b":"#3b82f6";
+
+  /* AI Weather */
+  const temp = Math.round(25+Math.random()*8);
+  const hum  = Math.round(65+Math.random()*25);
+  const wnd  = Math.round(10+Math.random()*30);
+  const rain = +(Math.random()*15).toFixed(1);
+  document.getElementById("w-temp").textContent = temp+"°C";
+  document.getElementById("w-humidity").textContent = hum+"%";
+  document.getElementById("w-wind").textContent = wnd+"km/h";
+  document.getElementById("w-rain").textContent = rain+"mm";
+
+  const forecast = rain>10 ? "🔴 HIGH flood risk — Evacuate low-lying areas immediately"
+    : rain>5 ? "⚠️ Moderate flood risk — rainfall expected to intensify"
+    : wnd>25 ? "⚠️ High winds — Cyclone watch in effect"
+    : seismic>4 ? "🔴 Seismic alert — aftershocks possible"
+    : "✅ Weather stable — No immediate natural disaster risk";
+  const fColor = rain>10||seismic>4?"#e11d48":rain>5||wnd>25?"#d97706":"#16a34a";
+  const el = document.getElementById("weather-forecast");
+  el.textContent = forecast;
+  el.style.color = fColor;
+}
+updateSensors();
+setInterval(updateSensors, 4000);
+
+/* Dark map style */
+const DARK_STYLE=[
+  {elementType:"geometry",stylers:[{color:"#1d1d2c"}]},
+  {elementType:"labels.text.fill",stylers:[{color:"#8ec3b9"}]},
+  {featureType:"road",elementType:"geometry",stylers:[{color:"#2a2a3e"}]},
+  {featureType:"water",elementType:"geometry",stylers:[{color:"#0e1626"}]},
+  {featureType:"poi",elementType:"geometry",stylers:[{color:"#1a1a2e"}]}
+];
+</script>
+</body>
+</html>

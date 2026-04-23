@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Seed Resources — DisasterCommand</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--bg); }
+    .seed-card { background:var(--bg-card); border-radius:var(--radius-lg); padding:40px; max-width:500px; width:100%; border:1px solid var(--border); box-shadow:var(--shadow-lg); text-align:center; }
+    .seed-card h1 { font-size:22px; font-weight:800; margin-bottom:8px; }
+    .seed-card p  { color:var(--text-secondary); font-size:14px; margin-bottom:28px; }
+    .resource-preview { display:flex; flex-direction:column; gap:8px; margin-bottom:28px; text-align:left; }
+    .rp-item { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--bg); border-radius:var(--radius-sm); border:1px solid var(--border); font-size:13px; }
+    .rp-icon { font-size:20px; }
+    .log { margin-top:20px; text-align:left; font-size:12px; font-family:monospace; background:var(--bg); border-radius:var(--radius-sm); padding:14px; border:1px solid var(--border); max-height:200px; overflow-y:auto; display:none; }
+    .log.show { display:block; }
+    .log-line { padding:2px 0; }
+    .log-line.ok  { color:#16a34a; }
+    .log-line.err { color:#e11d48; }
+    .log-line.info{ color:var(--text-secondary); }
+  </style>
+</head>
+<body>
+<div class="seed-card">
+  <div style="font-size:48px;margin-bottom:12px;">🌱</div>
+  <h1>Seed Emergency Resources</h1>
+  <p>This adds 6 emergency vehicles to Firestore so the AI dispatch system can assign them to incidents.</p>
+
+  <div class="resource-preview">
+    <div class="rp-item"><span class="rp-icon">🚒</span><div><b>Fire Truck #1</b> — Mira Road, Mumbai</div></div>
+    <div class="rp-item"><span class="rp-icon">🚒</span><div><b>Fire Truck #2</b> — Borivali, Mumbai</div></div>
+    <div class="rp-item"><span class="rp-icon">🚑</span><div><b>Ambulance #1</b> — Andheri, Mumbai</div></div>
+    <div class="rp-item"><span class="rp-icon">🚑</span><div><b>Ambulance #2</b> — Malad, Mumbai</div></div>
+    <div class="rp-item"><span class="rp-icon">🚔</span><div><b>Police Car #1</b> — Thane</div></div>
+    <div class="rp-item"><span class="rp-icon">🚔</span><div><b>Police Car #2</b> — Vasai</div></div>
+  </div>
+
+  <div class="alert alert-error" id="seed-error"></div>
+
+  <button class="btn btn-primary btn-full" id="seed-btn" onclick="seedResources()">
+    🚀 Seed Resources Now
+  </button>
+  <a href="dashboard.html" class="btn btn-outline btn-full" style="margin-top:10px;">← Back to Dashboard</a>
+
+  <div class="log" id="log"></div>
+</div>
+
+<script type="module">
+  import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc }
+    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDOfdPvigodx9J6c31TtU_kplvL4L89vYk",
+    authDomain: "idealab-f21d9.firebaseapp.com",
+    projectId: "idealab-f21d9",
+    storageBucket: "idealab-f21d9.firebasestorage.app",
+    messagingSenderId: "549958645898",
+    appId: "1:549958645898:web:fce17da515367abcc99573"
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  onAuthStateChanged(auth, u => { if (!u) window.location.href = "index.html"; });
+
+  const RESOURCES = [
+    { type: "fire truck",  latitude: 19.2812, longitude: 72.8726, available: true, name: "Fire Truck #1", location: "Mira Road" },
+    { type: "fire truck",  latitude: 19.2307, longitude: 72.8567, available: true, name: "Fire Truck #2", location: "Borivali" },
+    { type: "ambulance",   latitude: 19.1136, longitude: 72.8697, available: true, name: "Ambulance #1",  location: "Andheri" },
+    { type: "ambulance",   latitude: 19.1863, longitude: 72.8479, available: true, name: "Ambulance #2",  location: "Malad" },
+    { type: "police car",  latitude: 19.2183, longitude: 72.9781, available: true, name: "Police Car #1", location: "Thane" },
+    { type: "police car",  latitude: 19.3919, longitude: 72.8397, available: true, name: "Police Car #2", location: "Vasai" },
+  ];
+
+  function log(msg, type = "info") {
+    const box  = document.getElementById("log");
+    const line = document.createElement("div");
+    box.classList.add("show");
+    line.className = `log-line ${type}`;
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  window.seedResources = async function() {
+    const btn = document.getElementById("seed-btn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Seeding…';
+
+    try {
+      // 1. Clear old resources
+      log("Clearing existing resources…");
+      const existing = await getDocs(collection(db, "resources"));
+      for (const d of existing.docs) { await deleteDoc(doc(db, "resources", d.id)); }
+      log(`Removed ${existing.size} old records`, "info");
+
+      // 2. Add new
+      for (const r of RESOURCES) {
+        const ref = await addDoc(collection(db, "resources"), r);
+        log(`✓ Added ${r.name} (${r.location}) — ID: ${ref.id}`, "ok");
+      }
+
+      log("✅ All 6 resources seeded successfully!", "ok");
+      btn.innerHTML = "✅ Done! Resources Seeded";
+      btn.style.background = "#16a34a";
+
+      setTimeout(() => { window.location.href = "dashboard.html"; }, 2000);
+
+    } catch (err) {
+      log("❌ Error: " + err.message, "err");
+      document.getElementById("seed-error").textContent = "Error: " + err.message;
+      document.getElementById("seed-error").classList.add("show");
+      btn.textContent = "🚀 Try Again";
+      btn.disabled = false;
+    }
+  };
+</script>
+</body>
+</html>

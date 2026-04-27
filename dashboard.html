@@ -446,11 +446,19 @@
     let incidentCircles1 = [], incidentCircles2 = [];
     let allIncidents = [], activeFilter = "ALL";
     let knownIds = new Set();   // track which IDs we've seen before
+    let resourcesMap = {};
+    let animatingDispatches = new Set();
+    let animationOverlays = [];
 
     window.initMaps = function () {
       const center = { lat: 19.0760, lng: 72.8777 };
       map1 = new google.maps.Map(document.getElementById("map"), { zoom: 11, center, styles: mapStyle() });
       map2 = new google.maps.Map(document.getElementById("map2"), { zoom: 11, center, styles: mapStyle() });
+      
+      // Plot existing incidents if Firestore loaded before Maps
+      if (allIncidents.length > 0) {
+        redrawAllMarkers(allIncidents);
+      }
     };
 
     function mapStyle() {
@@ -516,6 +524,67 @@
         });
 
         knownIds.add(incident.id);
+
+        /* Animation logic */
+        const isRecent = incident.timestamp && (Date.now() - (incident.timestamp.toMillis ? incident.timestamp.toMillis() : new Date(incident.timestamp).getTime())) < 120000;
+        if (incident.assignedResource && isRecent && !animatingDispatches.has(incident.id)) {
+          const resource = resourcesMap[incident.assignedResource];
+          if (resource && resource.latitude && resource.longitude) {
+            animatingDispatches.add(incident.id);
+            startAnimation(resource, incident);
+          }
+        }
+      });
+    }
+
+    /* ── Animation ── */
+    function startAnimation(resource, incident) {
+      const start = { lat: resource.latitude, lng: resource.longitude };
+      const end = { lat: incident.latitude, lng: incident.longitude };
+      const type = resource.type;
+      const iconEmoji = type === "fire truck" ? "🚒" : type === "ambulance" ? "🚑" : "🚔";
+
+      [map1, map2].forEach(m => {
+        if (!m) return;
+        
+        const line = new google.maps.Polyline({
+          path: [start, start],
+          geodesic: true,
+          strokeColor: "#3b82f6",
+          strokeOpacity: 0.8,
+          strokeWeight: 3,
+          map: m
+        });
+
+        const marker = new google.maps.Marker({
+          position: start,
+          map: m,
+          label: { text: iconEmoji, fontSize: "22px" },
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 0 },
+          zIndex: 999
+        });
+
+        animationOverlays.push(line, marker);
+
+        let fraction = 0;
+        const duration = 6000; // 6 seconds
+        const fps = 30;
+        const interval = 1000 / fps;
+        const step = interval / duration;
+        
+        const timer = setInterval(() => {
+          fraction += step;
+          if (fraction >= 1) {
+            clearInterval(timer);
+            fraction = 1;
+            marker.setLabel({ text: "✅ " + iconEmoji, fontSize: "16px" });
+          }
+          const lat = start.lat + (end.lat - start.lat) * fraction;
+          const lng = start.lng + (end.lng - start.lng) * fraction;
+          const pos = { lat, lng };
+          marker.setPosition(pos);
+          line.setPath([start, pos]);
+        }, interval);
       });
     }
 
@@ -659,6 +728,7 @@
       let html = "";
       snap.forEach(d => {
         const r = d.data();
+        resourcesMap[d.id] = r;
         const icon = r.type === "fire truck" ? "🚒" : r.type === "ambulance" ? "🚑" : "🚔";
         html += `<div class="resource-item">
         <span class="resource-icon">${icon}</span>
@@ -672,6 +742,18 @@
       </div>`;
       });
       el.innerHTML = html;
+
+      /* Check pending animations if resources loaded after incidents */
+      allIncidents.forEach(incident => {
+        const isRecent = incident.timestamp && (Date.now() - (incident.timestamp.toMillis ? incident.timestamp.toMillis() : new Date(incident.timestamp).getTime())) < 120000;
+        if (incident.assignedResource && isRecent && !animatingDispatches.has(incident.id)) {
+          const res = resourcesMap[incident.assignedResource];
+          if (res && res.latitude && res.longitude) {
+            animatingDispatches.add(incident.id);
+            startAnimation(res, incident);
+          }
+        }
+      });
     });
 
     /* ── Refresh map2 when navigated to ── */
